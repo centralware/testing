@@ -5,5 +5,6 @@
 ### and kernel checking.
 
 Our TEST script above calls our builder's functions in a fashion similar to how the server farm will be using them.
-The intended compilation test will fail when using TCL 15.x as its dependencies require a newer version than TCL 15 has available, but if the newer files were implemented, the test does in fact succeed.
+The compilation has a test mode available which will fail when using TCL 15.x as its dependencies require a newer version than TCL 15 has available, but if the newer files were implemented, the test does in fact succeed.  For sake of this example, the builder will not exit regardless of that test's outcome.
+
 
