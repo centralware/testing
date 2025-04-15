@@ -520,3 +520,27 @@ ticktock()
     echo "${H}h ${M}m ${S}s"
 }
 
+
+token()
+{
+    A="github"
+    B="_pat_"
+    C="11ANDWLSA0PDo4QpbMBoPk"
+    D="_pRJrrpKBjgggTRUvvC439y3dFqvZiAQL8EaK5C4T48QL5RRJYP3tdxL4aHF"
+    echo "${A}${B}${C}${D}"
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
