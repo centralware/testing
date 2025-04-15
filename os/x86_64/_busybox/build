@@ -1,0 +1,277 @@
+#!/bin/sh
+
+    EXT_NAME="BusyBox"
+    EXT_FUNC="busybox"
+    EXT_FILE=""
+    EXT_VERS=""
+    EXT_PLAT=""
+    EXT_KERN=""
+    EXT_AUTH=""
+    EXT_SITE="https://busybox.net"
+    EXT_STAT="ACTIVE"
+    EXT_DEPS=""
+
+    BLD_DEPS="compiletc perl5 ncursesw-dev bash mpc-dev udev-lib-dev texinfo
+        coreutils glibc_apps gettext python3.6 elfutils-dev sstrip zsync
+        wget bc libmcrypt openresolv libtirpc-dev squashfs-tools"
+
+    CUR=$(pwd); FUNCTIONS=""
+    [ -f ./functions ]           && [ "${FUNCTIONS}" == "" ] && FUNCTIONS=$CUR
+    [ -f ../functions ]          && [ "${FUNCTIONS}" == "" ] && FUNCTIONS=$(dirname $CUR)
+    [ -f /etc/init.d/functions ] && [ "${FUNCTIONS}" == "" ] && FUNCTIONS="/etc/init.d"
+    . $FUNCTIONS/functions
+    getCPU; SFX=$CPU; SXX=${SFX/x86_/x}; export CFLAGS CXXFLAGS LDFLAGS
+    SXX=$SFX
+
+    # Command Line #
+    for i in $@
+    do
+        case $i in
+            *=*)
+                case $i in
+                    version*) echo "${i#*=}" > version ;;
+                esac
+                ;;
+            *)
+                case $i in
+                    nozswap) NOZSWAP=1 ;;
+                esac
+                ;;
+        esac
+    done
+
+function setuid()
+{
+    filename=$1
+    sudo chmod u+s $filename
+    sudo chmod g+s $filename
+}
+
+    clear; title
+    screenPOS 21 1; echo "${WHITE}Project      : ${ORANGE}${EXT_NAME}"
+    screenPOS 21 40; echo "${WHITE}Platform     : ${ORANGE}${CPU}${NORMAL}${CURSORON}"
+
+    screenPOS 23 1 && screenWIPE
+    screenPOS 23 1; echo -n "${WHITE}Status       : ${ORANGE}Loading Support Extensions${NORMAL}"
+    extload quiet $BLD_DEPS
+
+
+    ###############
+    ### VERSION ###
+    ###############
+    screenPOS 23 1 && screenWIPE
+    screenPOS 23 1; echo -n "${WHITE}Status       : ${ORANGE}Gathering version information${NORMAL}"
+    if [ ! -f $CUR/version ]; then
+        if [ ! -f _version_list ]; then
+            wget --no-check-certificate -O _versions https://www.busybox.net/downloads/ >$CUR/_version.log 2>&1
+            cat _versions | grep href | grep "busybox-" | awk -F "href=" '{print $2}' | awk -F ">" '{print $1}' | \
+                grep -v ".sign" | grep -v ".bz2.s" | grep -v snapshot | awk -F"\"" '{print $2}' > _version_list
+            rm _versions -f
+        fi
+        if [ ! -f _bbversion ]; then
+            wget -q --no-check-certificate -O _bbindex https://www.busybox.net/ >>$CUR/_version.log 2>&1
+            grep -m1 "(stable" _bbindex | awk -F "BusyBox " '{print $2}' | awk '{print $1}' > _bbversion
+            rm _bbindex -f
+        fi
+        mv _bbversion version
+        rm _version_list -f
+    fi
+    [ "${EXT_VERS}" == "" ] && EXT_VERS=$(cat version)
+    VERSION=$EXT_VERS
+
+
+    ################
+    ### DOWNLOAD ###
+    ################
+    screenPOS 23 1 && screenWIPE
+    screenPOS 23 1; echo -n "${WHITE}Status       : ${ORANGE}Downloading Source Code${NORMAL} "
+    [ ! -f ${EXT_FUNC}-${VERSION}.tar.bz2 ] && wget --no-check-certificate https://busybox.net/downloads/busybox-${VERSION}.tar.bz2 >$CUR/_download.log 2>&1
+
+
+    ## RPC ##
+    [ ! -d /usr/local/include/rpc ] && sudo cp /usr/local/include/tirpc/* /usr/local/include/ -fR
+
+    mkdir -p $CUR/pkg $CUR/tmp; sudo rm $CUR/pkg -fR; sudo rm $CUR/tmp -fR
+
+
+    ##########################
+    ##### BUSYBOX - SUID #####
+    ##########################
+
+    # Let's create a fresh source directory #
+    screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${ORANGE}Extracting Source Code${NORMAL} "
+    if [ ! -d $CUR/src_suid ]; then
+        cd $CUR; mkdir -p ${EXT_FUNC}-${VERSION}; rm ${EXT_FUNC}-${VERSION} -fR
+        tar -jxf ${EXT_FUNC}-${VERSION}.tar.bz2 >/dev/null 2>&1
+        mv ${EXT_FUNC}-${VERSION} src_suid
+    fi
+
+    cd $CUR/src_suid
+    CR="\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+    CR="$CR$CR$CR$CR$CR$CR$CR$CR"; echo -e "$CR" > blank
+    screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${ORANGE}Applying Patches${NORMAL} "
+    patch -Np1 -i $CUR/_patches/*.patch >> $CUR/_suid_compile.log 2>&1; echo
+    if [ ! -f ./.oldconfig ]; then
+        screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${ORANGE}Configuring SUID${NORMAL} "
+        cp $CUR/_config/config_suid ./.config
+        make -j$(nproc) oldconfig < blank >> $CUR/_suid_compile.log 2>&1 || exit 1
+        touch ./.oldconfig
+    fi
+    if [ ! -f ./.make1 ]; then
+        screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${ORANGE}Compiling SUID${NORMAL} "
+        make -j$(nproc) LDLIBS="crypt tirpc" CC="gcc -flto -mtune=generic -Os -pipe" CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" >> $CUR/_suid_compile.log 2>&1 || exit 1
+        touch ./.make1
+    fi
+    screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${ORANGE}Copying SUID Files${NORMAL} "
+    sudo make LDLIBS="crypt tirpc" CC="gcc -flto -mtune=generic -Os -pipe" CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" CONFIG_PREFIX=$CUR/tmp install >> $CUR/_suid_compile.log 2>&1 || exit 1
+
+    mkdir -p $CUR/pkg/bin $CUR/pkg/sbin
+    cd $CUR/tmp/bin
+    sudo mv busybox busybox.suid
+    sudo chmod u+s busybox.suid
+    sudo chmod g+s busybox.suid
+    sudo strip -s busybox.suid
+    sudo mv busybox.suid $CUR/pkg/bin/
+    cd $CUR/pkg/bin/
+    ln -s busybox.suid login
+    ln -s busybox.suid mount
+    ln -s busybox.suid ping
+    ln -s busybox.suid ping6
+    ln -s busybox.suid su
+    ln -s busybox.suid umount
+    ln -s busybox.suid crontab
+    ln -s busybox.suid getfattr
+    ln -s busybox.suid passwd
+    ln -s busybox.suid tracert
+    ln -s busybox.suid vlock
+
+    cd ../sbin
+    ln -s ../bin/busybox.suid fstrim
+
+    cd $CUR
+    sudo rm tmp -fR
+
+
+#    echo; echo "${CURSORON}EXIT"; exit
+
+
+    ####################
+    ##### NON-SUID #####
+    ####################
+    screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${YELLOW}Extracting Source Code${NORMAL} "
+    if [ ! -d $CUR/src_nosuid ]; then
+        cd $CUR
+        tar -jxf ${EXT_FUNC}-${VERSION}.tar.bz2 >/dev/null 2>&1
+        mv ${EXT_FUNC}-${VERSION} src_nosuid
+    fi
+
+    cd $CUR/src_nosuid
+    CR="\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+    CR="$CR$CR$CR$CR$CR$CR$CR$CR"; echo -e "$CR" > blank
+    screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${YELLOW}Applying Patches To NO-SUID${NORMAL} "
+    patch -Np1 -i $CUR/_patches/*.patch >> $CUR/_nosuid_compile.log 2>&1; echo
+    if [ ! -f ./.oldconfig ]; then
+        screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${YELLOW}Configuring NO_SUID${NORMAL} "
+        cp $CUR/_config/config_nosuid ./.config
+        make -j$(nproc) oldconfig < blank >> $CUR/_suid_compile.log 2>&1 || exit 1
+        touch ./.oldconfig
+    fi
+    if [ ! -f ./.make1 ]; then
+        screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${YELLOW}Compiling NO-SUID${NORMAL} "
+        make -j$(nproc) LDLIBS="crypt m" CC="gcc -flto -mtune=generic -Os -pipe" CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" >> $CUR/_nosuid_compile.log 2>&1 || exit 1
+        touch ./.make1
+    fi
+    screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${YELLOW}Copying NO-SUID Files${NORMAL} "
+    sudo make LDLIBS="crypt m" CC="gcc -flto -mtune=generic -Os -pipe" CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" CONFIG_PREFIX=$CUR/tmp install >> $CUR/_nosuid_compile.log 2>&1 || exit 1
+
+    cd $CUR/tmp; cp * $CUR/pkg/ -fR
+    cd $CUR; sudo rm tmp -fR
+
+
+
+    echo -n "${CURSORON}"
+
+    ###################
+    ##### NETWORK #####
+    ###################
+    cd $CUR
+    screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${MAGENTA}Extracting Source Code${NORMAL} "
+    if [ ! -d $CUR/src_network ]; then
+        tar -jxf ${EXT_FUNC}-${VERSION}.tar.bz2 >/dev/null 2>&1
+        mv ${EXT_FUNC}-${VERSION} src_network
+    fi
+    cd $CUR/src_network
+    CR="\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+    CR="$CR$CR$CR$CR$CR$CR$CR$CR"; echo -e "$CR" > blank
+    screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${MAGENTA}Applying Patches To NET TOOLS${NORMAL} "
+    patch -Np1 -i $CUR/_patches/*.patch >> $CUR/_network_compile.log 2>&1; echo
+    if [ ! -f ./.oldconfig ]; then
+        screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${MAGENTA}Configuring NET TOOLS${NORMAL} "
+        cp $CUR/_config/config_net ./.config
+        make -j$(nproc) oldconfig < blank >> $CUR/_network_compile.log 2>&1 || exit 1
+        touch ./.oldconfig
+    fi
+
+    screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${MAGENTA}Compiling NET TOOLS${NORMAL} "
+    sed -i 's/-j9/-j$(nproc)/g' make_single_applets.sh
+    sh make_single_applets.sh >> $CUR/_network_compile.log 2>&1 || exit 1
+
+    screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${MAGENTA}Copying NET TOOLS Files${NORMAL} "
+#    sudo make LDLIBS="crypt" CC="gcc -flto -mtune=generic -Os -pipe" CXX="g++ -flto -mtune=generic -Os -pipe -fno-exceptions -fno-rtti" CONFIG_PREFIX=$CUR/tmp install >> $CUR/_network_compile.log 2>&1 || exit 1
+
+    mkdir -p $CUR/pkg/usr/local/bin $CUR/pkg/usr/local/sbin
+
+    cp busybox_ETHER_WAKE $CUR/pkg/usr/local/bin/wake; setuid $CUR/pkg/usr/local/bin/wake
+    cp busybox_FTPGET $CUR/pkg/usr/local/bin/ftpget; setuid $CUR/pkg/usr/local/bin/ftpget
+    cp busybox_FTPPUT $CUR/pkg/usr/local/bin/ftpput; setuid $CUR/pkg/usr/local/bin/ftpput
+    cp busybox_TFTP $CUR/pkg/usr/local/bin/tftp; setuid $CUR/pkg/usr/local/bin/tftp
+
+    cp busybox_FTPD $CUR/pkg/usr/local/sbin/ftpd; setuid $CUR/pkg/usr/local/sbin/ftpd
+    cp busybox_HTTPD $CUR/pkg/usr/local/sbin/httpd; setuid $CUR/pkg/usr/local/sbin/httpd
+    cp busybox_IFENSLAVE $CUR/pkg/usr/local/sbin/ifenslave; setuid $CUR/pkg/usr/local/sbin/ifenslave
+    cp busybox_NTPD $CUR/pkg/usr/local/sbin/ntpd; setuid $CUR/pkg/usr/local/sbin/ntpd
+    cp busybox_TCPSVD $CUR/pkg/usr/local/sbin/tcpd; setuid $CUR/pkg/usr/local/sbin/tcpd
+    cp busybox_TFTPD $CUR/pkg/usr/local/sbin/tftpd; setuid $CUR/pkg/usr/local/sbin/tftpd
+    cp busybox_UDPSVD $CUR/pkg/usr/local/sbin/udpd; setuid $CUR/pkg/usr/local/sbin/udpd
+
+
+    screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${ORANGE}Stripping Binaries${NORMAL} "
+    cd $CUR/pkg
+    stripper
+
+    cd $CUR
+    screenPOS 23 1 && screenWIPE; screenPOS 23 1; echo -n "${WHITE}Status       : ${CYAN}Packaging $EXT_NAME${NORMAL} "
+    mksquashfs pkg $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.nix > $CUR/_app_squash.log 2>&1
+    md5sum ${EXT_FUNC}__${EXT_VERS}__${SXX}.nix > $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.md5
+    SIZE=$(ls -la $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.nix | awk '{print $5}')
+    [ $SIZE -gt 1024 ] && SZX="KB" && SIZE=$(expr $SIZE / 1024)
+    [ $SIZE -gt 1024 ] && SZX="MB" && SIZE=$(expr $SIZE / 1024)
+    [ $SIZE -gt 1024 ] && SZX="GB" && SIZE=$(expr $SIZE / 1024)
+
+    FN=$CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.nfo
+    echo "Title:             $EXT_NAME" > $FN
+    echo "Description:       $EXT_NAME" >> $FN
+    echo "Version:           $VERSION" >> $FN
+    echo "Author:            $EXT_AUTH" >> $FN
+    echo "Original-site:     $EXT_SITE" >> $FN
+    echo "Copying-policy:    Copyright (C) 2005 to Current" >> $FN
+    echo "Size:              $SIZE $SZX" >> $FN
+    echo "Extension_by:      CentralWare Development Centers" >> $FN
+    echo "Tags:              $EXT_TAGS" >> $FN
+    echo "Comments:          Compiled With SimpleNix" >> $FN
+    echo "Current:           $(date '+%F%n') by CentralWare" >> $FN
+    echo "Signature:         $(cat $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.md5 | awk '{print $1}')" >> $FN
+    #[ ! "${$EXT_DEPS}" == "" ] && 
+    echo "Depends:           $EXT_DEPS" >> $FN
+    echo "Change-log:        ----" >> $FN
+
+    cd $CUR/pkg
+    find . -not -type d > $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.lst
+    nodot $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.lst
+    sort $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.lst > $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.srt
+    rm $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.lst -f
+    mv $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.srt $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.lst
+    #sed -i 's/.\/usr/\/usr/g' $CUR/${EXT_FUNC}__${EXT_VERS}__${SXX}.lst
+
+    screenPOS 23 1 && screenWIPE
+    echo "${CURSORON}"

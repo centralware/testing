@@ -1,0 +1,28 @@
+#!/bin/sh
+
+find . -type f > /tmp/filelisting
+tar -zcf extract.tar.gz -T /tmp/filelisting
+rm /tmp/filelisting -f
+
+echo "#!/bin/sh" > builder
+echo "##################################################################################" >> builder
+echo "### ALL BUILDERS ARE CONTAINERS even if we only contain the compilation script ###" >> builder
+echo "### Our filename will be EXTENSION-NAME_VERSION_PLATFORM.bld once complete.    ###" >> builder
+echo "##################################################################################" >> builder
+echo "CUR=\$(pwd); FUNCTIONS=\"\"" >> builder
+echo "[ -f ./functions ]           && FUNCTIONS=\$CUR" >> builder
+echo "[ ! "\${FUNC}" == \"\" ]        && [ \"\${FUNCTIONS}\" == \"\" ] && FUNCTIONS=\${FUNC}" >> builder
+echo "[ -f ../functions ]          && [ \"\${FUNCTIONS}\" == \"\" ] && FUNCTIONS=\$(dirname $CUR)" >> builder
+echo "[ -f /etc/init.d/functions ] && [ \"\${FUNCTIONS}\" == \"\" ] && FUNCTIONS=\"/etc/init.d\"" >> builder
+echo "[ \"\${FUNCTIONS}\" == \"\" ] && echo \"Cannot locate support script. Aborting.\" && exit 1" >> builder
+echo ". \${FUNCTIONS}/functions; clear; title" >> builder
+echo "tail -n +20 \$0 > extract.tar.gz" >> builder
+echo "tar -zxf extract.tar.gz && rm extract.tar.gz -f" >> builder
+echo "./.builder" >> builder
+echo "rm \$0 -f" >> builder
+echo "" >> builder
+echo "" >> builder
+echo "### END OF FILE ###" >> builder
+cat extract.tar.gz >> builder
+rm extract.tar.gz -f
+chmod +x builder
