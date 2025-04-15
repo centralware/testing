@@ -116,30 +116,3 @@ compilePack()
     cd $CUR && mksquashfs ext ${PathName}.nix >$CUR/_squash.log 2>&1 || exit 1
     md5sum ${PathName}.nix > ${PathName}.sig
 }
-
-
-clear
-title
-
-extload quiet wget                      # Load General WGET
-
-screenPOS 22 1 && screenWIPE && screenPOS 22 1 && echo -n "${YELLOW}Gathering Version Information${NORMAL} "
-VERSION=$(getVersion)                   # Get VERSION if we don't have it already
-
-screenPOS 22 1 && screenWIPE && screenPOS 22 1 && echo -n "${YELLOW}Downloading Source Package${NORMAL} "
-getDownload $VERSION                    # Download source if we don't have it already
-extractDownload $VERSION                # ...and extract it if not already done so.
-
-screenPOS 22 1 && screenWIPE && screenPOS 22 1 && echo -n "${CYAN}Configuring Source Package${NORMAL} "
-configureSource $VERSION                # Configure our source package
-
-screenPOS 22 1 && screenWIPE && screenPOS 22 1 && echo -n "${MAGENTA}Compiling Source Package${NORMAL} "
-compileSource $VERSION                  # Now let's compile it
-
-screenPOS 22 1 && screenWIPE && screenPOS 22 1 && echo -n "${MAGENTA}Testing Compilation${NORMAL} "
-compileTest $VERSION                    # We have a test - let's use it!
-
-screenPOS 22 1 && screenWIPE && screenPOS 22 1 && echo -n "${CYAN}Packaging Compilation${NORMAL} "
-compilePack $VERSION                    # Lastly, let's package our binaries
-
-screenPOS 22 1 && screenWIPE && screenPOS 22 1 && echo "${GREEN}Operation Complete.${NORMAL} "

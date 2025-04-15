@@ -1,0 +1,42 @@
+#!/bin/sh
+CUR=$(pwd)
+
+###############################################
+# We first need to locate our function script #
+###############################################
+FNC=""
+[ -f ./functions ] && FNC="./"
+[ -f ../functions ] && FNC="../"
+[ "${FNC}" == "" ] && [ -f /opt/functions ] && FNC="/opt"
+[ "${FNC}" == "" ] && [ -f /etc/init.d/functions ] && FNC="/etc/init.d"
+[ "${FNC}" == "" ] && [ -f /usr/local/etc/functions ] && FNC="/usr/local/etc"
+[ "${FNC}" == "" ] && echo -e '\033[1;31mERROR! \033[0;39mSupport functions file not found!  Aborting.' && exit 1
+. ${FNC}/functions
+
+clear
+title
+
+extload quiet wget                      # Load General WGET
+
+. $CUR/build                            # Load our builder so we can call its functions
+
+screenPOS 22 1 && screenWIPE && screenPOS 22 1 && echo -n "${YELLOW}Gathering Version Information${NORMAL} "
+VERSION=$(getVersion)                   # Get VERSION if we don't have it already
+
+screenPOS 22 1 && screenWIPE && screenPOS 22 1 && echo -n "${YELLOW}Downloading Source Package${NORMAL} "
+getDownload $VERSION                    # Download source if we don't have it already
+extractDownload $VERSION                # ...and extract it if not already done so.
+
+screenPOS 22 1 && screenWIPE && screenPOS 22 1 && echo -n "${CYAN}Configuring Source Package${NORMAL} "
+configureSource $VERSION                # Configure our source package
+
+screenPOS 22 1 && screenWIPE && screenPOS 22 1 && echo -n "${MAGENTA}Compiling Source Package${NORMAL} "
+compileSource $VERSION                  # Now let's compile it
+
+screenPOS 22 1 && screenWIPE && screenPOS 22 1 && echo -n "${MAGENTA}Testing Compilation${NORMAL} "
+compileTest $VERSION                    # We have a test - let's use it!
+
+screenPOS 22 1 && screenWIPE && screenPOS 22 1 && echo -n "${CYAN}Packaging Compilation${NORMAL} "
+compilePack $VERSION                    # Lastly, let's package our binaries
+
+screenPOS 22 1 && screenWIPE && screenPOS 22 1 && echo "${GREEN}Operation Complete.${NORMAL} "
