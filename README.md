@@ -30,6 +30,5 @@ All patch files, configuration files, init scripts, etc. are expected to be pack
 Tiny Core Linux, for example, would then take the RAW extension and rename it according to their repository needs, attach .dep .info .md5 and .list files and upload it to their repository server for each hardware platform requested.  For RPM or DEB the RAW extension is extracted and repackaged as needed, again, adding informative details where necessary.  This concept should end up creating the world's largest one-stop repository with an automated back-end consisting of dozens of hardware devices which may eventually be tuned to handle cross-compilation where necessary.
 
 
-
-For sake of speed and efficiency, we are going to start this project using as many publicly available resources, including those found in different distributions which may already be partially functional.  (Fully functional would be a dream come true!)
-For these instances, we're going to have a ***convert*** directory which contains the seeds from different distributions to be used as a guide to create functioning Simple Linux Builders.
+`#FF0000`For sake of speed and efficiency, we are going to start this project using as many publicly available resources, including those found in different distributions which may already be partially functional.  (Fully functional would be a dream come true!)
+For these instances, we're going to have a ***convert*** directory which contains the seeds from different distributions to be used as a guide to create functioning Simple Linux Builders.`#000000`
