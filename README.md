@@ -32,4 +32,4 @@ Tiny Core Linux, for example, would then take the RAW extension and rename it ac
 
 
 For sake of speed and efficiency, we are going to start this project using as many publicly available resources, including those found in different distributions which may already be partially functional.  (Fully functional would be a dream come true!)
-For these instances, we're going to have a ##convert## directory which contains the seeds from different distributions to be used as a guide to create functioning Simple Linux Builders.
+For these instances, we're going to have a ***convert*** directory which contains the seeds from different distributions to be used as a guide to create functioning Simple Linux Builders.
